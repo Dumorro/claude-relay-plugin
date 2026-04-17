@@ -1,0 +1,24 @@
+{
+  "name": "relay-local",
+  "owner": {
+    "name": "dumorro",
+    "email": "it@pibapp.com.br"
+  },
+  "plugins": [
+    {
+      "name": "claude-relay-plugin",
+      "source": "./",
+      "description": "Two-profile workflow: architect refines a phase, executor builds it in an isolated worktree. Git tag seals the handoff.",
+      "version": "1.0.0",
+      "category": "workflow",
+      "keywords": [
+        "workflow",
+        "gsd",
+        "two-profile",
+        "architect",
+        "executor",
+        "worktree"
+      ]
+    }
+  ]
+}

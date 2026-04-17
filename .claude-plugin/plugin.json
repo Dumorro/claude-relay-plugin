@@ -1,0 +1,23 @@
+{
+  "name": "claude-relay-plugin",
+  "version": "1.0.0",
+  "description": "Two-profile workflow: architect refines a phase, executor builds it in an isolated worktree. Git tag seals the handoff.",
+  "author": {
+    "name": "dumorro",
+    "email": "it@pibapp.com.br"
+  },
+  "repository": "https://github.com/dumorro/claude-relay-plugin",
+  "license": "MIT",
+  "keywords": [
+    "workflow",
+    "gsd",
+    "two-profile",
+    "architect",
+    "executor",
+    "worktree",
+    "gate",
+    "refinement",
+    "handoff"
+  ],
+  "claude_code_version": ">=2.0.0"
+}
