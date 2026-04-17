@@ -75,6 +75,8 @@ Count active `<REPO>-exec-*` worktrees. Read `.planning/config.json` → `workfl
 
 ### 2. Create the worktree
 
+**Attempt 1 — standard `git worktree add`:**
+
 ```bash
 git fetch --tags
 git worktree add -b gsd/phase-N-exec ../<REPO>-exec-N phase-N-refined
@@ -82,14 +84,40 @@ git worktree add -b gsd/phase-N-exec ../<REPO>-exec-N phase-N-refined
 
 Where `<REPO>` is the value of `basename $(pwd)`.
 
-**If the command fails with `error: reset died of signal 10`** (known Apple Git 2.39.5 bug, see `docs/TROUBLESHOOTING.md`):
+**If this fails with `error: reset died of signal 10`** (Apple Git 2.39.5 SIGBUS in `pack-objects`, see `docs/TROUBLESHOOTING.md`): do **not** abort. Use the proven fallback below (validated in real Phase 44 execution, 2026-04-17).
 
-1. Report clearly to the user: "Known Apple Git signal 10 bug detected. `git worktree add` cannot materialize the checkout."
-2. Suggest: "Install newer git: `brew install git`. Then retry `/relay-claim-phase N`."
-3. Do NOT try workarounds (`--no-checkout` + `checkout-index` creates an empty index — confirmed in both pwa and core-api pilots).
-4. Exit gracefully — leave no partial state (delete orphan branch if created).
+**Attempt 2 — fallback (bypass pack-objects via rsync + read-tree):**
 
-If the command fails for another reason (branch already exists, disk full, etc.), report and offer appropriate remediation.
+```bash
+# Clean any partial state
+git branch -D gsd/phase-N-exec 2>/dev/null || true
+
+# Create worktree without checkout (skips the reset that crashes)
+git worktree add --no-checkout -b gsd/phase-N-exec ../<REPO>-exec-N phase-N-refined
+
+# Populate working tree via rsync (bypasses pack-objects entirely)
+rsync -a \
+  --exclude='.git' \
+  --exclude='bin/' \
+  --exclude='obj/' \
+  --exclude='.idea/' \
+  --exclude='node_modules/' \
+  --exclude='.claude/worktrees' \
+  ./ ../<REPO>-exec-N/
+
+# Populate the worktree's index from HEAD (no pack-objects needed)
+cd ../<REPO>-exec-N
+find ../<REPO>/.git/worktrees/<REPO>-exec-N/ -name '*.lock' -delete 2>/dev/null
+git read-tree HEAD
+```
+
+Verify clean: `git status --short` should be empty (or show only files that should be gitignored — e.g., `.planning/HANDOFF.json` if the main worktree had it uncommitted). Copy any missing tracked files manually if `git status` shows them as `D`.
+
+**Why not just `checkout-index`?** Tested in pilots 999.1 (pwa + core-api): `checkout-index -a -f` alone produces an **empty index** because the worktree metadata was created by `--no-checkout`. `read-tree HEAD` is what actually populates the index.
+
+If Attempt 2 also fails (disk full, permission error, non-signal-10 cause): report cleanly and suggest `brew install git` or running from a different shell/environment. Delete orphan branch if created.
+
+If the command fails for another reason at Attempt 1 (branch already exists, disk full, etc.), report and offer appropriate remediation.
 
 ### 3. Install dependencies in the new worktree
 
@@ -129,23 +157,37 @@ git commit -m "chore(phase-N): claim worktree"
 Worktree: ../<REPO>-exec-N
 Branch: gsd/phase-N-exec
 Base tag: phase-N-refined
-
-Next step — open a NEW Claude window pointing at the worktree:
-  cd <full path to ../<REPO>-exec-N>
-  claude
-
-In the new Claude session, run the executor pipeline:
-  /gsd-execute-phase N --wave 1
-  /gsd-verify-work N
-  /gsd-ship
-
-After merge, clean up:
-  cd <full path to main worktree>
-  git worktree remove ../<REPO>-exec-N
-  git branch -d gsd/phase-N-exec
+Deps installed: <yes/no, tool used>
 ```
 
-**IMPORTANT:** the current Claude session should stay in the main worktree (Architect profile). The actual execution happens in the new window.
+Then print a **bold warning banner** — this is the single most important message:
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  ⚠️  DO NOT run /gsd-execute-phase in THIS session.              ║
+║                                                                  ║
+║  Phase execution MUST happen in the exec worktree, NOT main.    ║
+║  Running execute here pollutes main with exec commits and        ║
+║  breaks the two-profile isolation guarantee.                     ║
+║                                                                  ║
+║  Next steps (in a NEW terminal window):                          ║
+║                                                                  ║
+║    cd <ABSOLUTE PATH OF ../<REPO>-exec-N>                        ║
+║    claude                                                        ║
+║    /gsd-execute-phase N --wave 1                                 ║
+║    /gsd-verify-work N                                            ║
+║    /gsd-ship                                                     ║
+║                                                                  ║
+║  After PR merge, back here in main:                              ║
+║    /relay-finalize-phase N                                       ║
+║                                                                  ║
+║  The current Claude session stays as Architect in main.          ║
+╚══════════════════════════════════════════════════════════════════╝
+```
+
+Replace `<ABSOLUTE PATH OF ../<REPO>-exec-N>` with the actual absolute path (expand `..` against the main worktree's parent dir).
+
+**IMPORTANT:** the current Claude session should stay in the main worktree (Architect profile). The actual execution happens in the new window. The `enforce-worktree-execution` PreToolUse hook (shipped with this plugin) will also block `/gsd-execute-phase N` invocations from main once a sealed phase has an active exec worktree — as a safety net.
 
 ---
 

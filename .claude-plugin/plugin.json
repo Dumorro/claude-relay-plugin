@@ -1,6 +1,6 @@
 {
   "name": "claude-relay-plugin",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Two-profile workflow: architect refines a phase, executor builds it in an isolated worktree. Git tag seals the handoff.",
   "author": {
     "name": "dumorro",

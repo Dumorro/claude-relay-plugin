@@ -8,9 +8,9 @@ Preparing worktree (new branch 'gsd/phase-N-exec')
 error: reset died of signal 10
 ```
 
-**Cause:** bug in **Apple Git 2.39.5** (shipped with macOS Command Line Tools). The `pack-objects` and `reset` subprocesses crash with SIGBUS — likely mmap + APFS / Time Machine interaction.
+**Cause:** bug in **Apple Git 2.39.5** (shipped with macOS Command Line Tools). The `pack-objects` and `reset` subprocesses crash with SIGBUS — likely mmap + APFS / Time Machine interaction. Also observed with Homebrew Git 2.53 on the same machine, so upgrading git alone **may not** resolve it in all environments.
 
-**Fix:** install a newer git via Homebrew.
+### Preferred fix — install newer Git via Homebrew
 
 ```bash
 brew install git
@@ -28,7 +28,47 @@ export PATH="/opt/homebrew/bin:$PATH"
 
 Reopen your shell, then retry `/relay-claim-phase`.
 
-**Confirmed in:** pwa + core-api pilots of this workflow (2026-04-17).
+### Fallback — rsync + read-tree (shipped in Relay v1.1.0)
+
+If the bug persists even after upgrading git, the **`/relay-claim-phase` skill now performs this fallback automatically** (v1.1.0+). It's documented here for manual debugging.
+
+```bash
+# From inside the main worktree (e.g., src/core-api)
+REPO=$(basename $(pwd))
+
+# 1. Clean any partial state from a failed attempt
+git branch -D gsd/phase-<N>-exec 2>/dev/null || true
+
+# 2. Create worktree WITHOUT checkout (skips the reset that crashes)
+git worktree add --no-checkout -b gsd/phase-<N>-exec ../${REPO}-exec-<N> phase-<N>-refined
+
+# 3. Populate files via rsync (bypasses pack-objects entirely)
+rsync -a \
+  --exclude='.git' \
+  --exclude='bin/' \
+  --exclude='obj/' \
+  --exclude='.idea/' \
+  --exclude='node_modules/' \
+  --exclude='.claude/worktrees' \
+  ./ ../${REPO}-exec-<N>/
+
+# 4. Populate the index from HEAD (no pack-objects needed)
+cd ../${REPO}-exec-<N>
+find ../${REPO}/.git/worktrees/${REPO}-exec-<N>/ -name '*.lock' -delete 2>/dev/null
+git read-tree HEAD
+
+# Verify: working tree clean (or only expected untracked)
+git status --short
+```
+
+**Why not just `git worktree add --no-checkout` + `git checkout-index -a -f`?** Tested in pilots 999.1 (pwa + core-api): `checkout-index` alone produces an **empty index** because `--no-checkout` creates a worktree with no index entries. `read-tree HEAD` is what actually populates the index from the commit tree. The rsync provides the working files.
+
+**Caveats:**
+- This workaround makes the exec worktree a first-class git citizen (branch tracks the tag base commit) but bypasses any clean `git reset` the worktree setup normally does.
+- If the main worktree has uncommitted tracked changes, they will be rsync'd into the exec worktree too. Commit or stash them first.
+- `git status` in the exec worktree may show 1-2 files as deleted (typical: `.planning/HANDOFF.json`) if your rsync excluded them by pattern. Manually `cp` them from main if needed.
+
+**Confirmed working in:** Phase 44 Foundation & Safety (core-api, 2026-04-17) — 100 files populated cleanly, `git status` clean after manual `cp` of 1 excluded file.
 
 ## Slash commands don't appear
 
