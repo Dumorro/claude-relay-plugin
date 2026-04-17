@@ -16,13 +16,15 @@ Optional but recommended:
 
 ```bash
 cd ~/Documents/Repos
-git clone https://github.com/dumorro/claude-relay-plugin.git
+git clone https://github.com/Dumorro/claude-relay-plugin.git
 cd claude-relay-plugin
 ```
 
 ## 2. Register the marketplace
 
-Add to `~/.claude/settings.json` (global) or to your workspace root `.claude/settings.json`:
+Add to `~/.claude/settings.json` (global) or to your workspace root `.claude/settings.json`. Two options:
+
+### Option A — local file (dev / offline / personal use)
 
 ```json
 {
@@ -39,6 +41,27 @@ Add to `~/.claude/settings.json` (global) or to your workspace root `.claude/set
   }
 }
 ```
+
+### Option B — GitHub (shared / versioned install)
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "relay-github": {
+      "source": {
+        "source": "github",
+        "repo": "Dumorro/claude-relay-plugin",
+        "ref": "v1.0.0"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "claude-relay-plugin@relay-github": true
+  }
+}
+```
+
+Use a specific tag (e.g. `v1.0.0`) or `main` for rolling updates. Claude Code clones the repo under `~/.claude/plugins/cache/` and refreshes per the `autoUpdate` flag.
 
 Restart Claude Code (or run `/plugins` to reload).
 

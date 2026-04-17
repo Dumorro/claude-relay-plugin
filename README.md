@@ -29,7 +29,7 @@ Relay fixes all three with one git tag and four folders.
 ```bash
 # 1. Clone this repo
 cd ~/Documents/Repos
-git clone https://github.com/dumorro/claude-relay-plugin.git
+git clone https://github.com/Dumorro/claude-relay-plugin.git
 
 # 2. Register the marketplace in your user settings (~/.claude/settings.json)
 #    or in the workspace root .claude/settings.json:
